@@ -1,0 +1,47 @@
+name: Build and Push GHCR Images
+
+on:
+  push:
+    branches:
+      - feat/dhi-php74-fpm
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image owner
+        id: image_owner
+        run: echo "value=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Authenticate before build so `docker build` can pull the private/base image
+      # `ghcr.io/media-apps/php:debian13` (same-org packages: read with GITHUB_TOKEN).
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./vdebian13
+          file: ./vdebian13/Dockerfile.multiarch
+          push: true
+          tags: |
+            ghcr.io/${{ steps.image_owner.outputs.value }}/server:debian13
+            ghcr.io/${{ steps.image_owner.outputs.value }}/server:debian13-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
