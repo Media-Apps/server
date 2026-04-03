@@ -2,7 +2,7 @@
 # Use this file on target hosts for deploy; do not use it as local dev stack.
 services:
   owncloud:
-    image: owncloud/server:24.04-dhi
+    image: ghcr.io/media-apps/server:debian13
     container_name: owncloud_server
     restart: always
     ports:
@@ -10,7 +10,7 @@ services:
     depends_on:
       init_chown:
         condition: service_completed_successfully
-      mariadb:
+      mysql_dhi:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -28,13 +28,14 @@ services:
       OWNCLOUD_DB_NAME: owncloud
       OWNCLOUD_DB_USERNAME: owncloud
       OWNCLOUD_DB_PASSWORD: owncloud
-      OWNCLOUD_DB_HOST: mariadb
+      OWNCLOUD_DB_HOST: mysql_dhi
       OWNCLOUD_ADMIN_USERNAME: ${ADMIN_USERNAME}
       OWNCLOUD_ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       OWNCLOUD_MYSQL_UTF8MB4: "true"
       OWNCLOUD_REDIS_ENABLED: "true"
       OWNCLOUD_REDIS_HOST: redis
       OWNCLOUD_SUB_URL: ${OWNCLOUD_SUB_URL}
+      OWNCLOUD_SKIP_CHOWN: "true"
     healthcheck:
       test: ["CMD", "/usr/bin/healthcheck"]
       interval: 30s
@@ -47,7 +48,7 @@ services:
       - oc_network
 
   init_chown:
-    image: owncloud/server:24.04-dhi
+    image: ghcr.io/media-apps/server:debian13
     container_name: owncloud_init_chown
     restart: "no"
     user: "0:0"
@@ -60,34 +61,46 @@ services:
     networks:
       - oc_network
 
-  mariadb:
-    image: mariadb:10.11
-    container_name: owncloud_mariadb
+  mysql_dhi:
+    image: dhi.io/mysql:8.0
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: owncloud
-      MYSQL_USER: owncloud
-      MYSQL_PASSWORD: owncloud
-      MYSQL_DATABASE: owncloud
-      MARIADB_AUTO_UPGRADE: "1"
-    command: ["--max-allowed-packet=128M", "--innodb-log-file-size=64M"]
+      - MYSQL_ROOT_PASSWORD=owncloud
+      - MYSQL_OPTIONS=--max_allowed_packet=128M
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-u", "root", "--password=owncloud"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
     volumes:
       - mysql:/var/lib/mysql
     networks:
       - oc_network
+      
+  mysql_bootstrap:
+    image: dhi.io/mysql:8.0
+    depends_on:
+      mysql_dhi:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-lc"]
+    command: >
+      "set -euo pipefail;
+      /opt/mysql/bin/mysql -hmysql_dhi -uroot -powncloud -e
+      \"CREATE DATABASE IF NOT EXISTS owncloud;
+      CREATE USER IF NOT EXISTS 'owncloud'@'%' IDENTIFIED WITH mysql_native_password BY 'owncloud';
+      ALTER USER 'owncloud'@'%' IDENTIFIED WITH mysql_native_password BY 'owncloud';
+      GRANT ALL PRIVILEGES ON owncloud.* TO 'owncloud'@'%';
+      FLUSH PRIVILEGES;\""
+    restart: "no"
+    networks:
+      - oc_network
 
   redis:
-    image: redis:6
-    container_name: owncloud_redis
+    image: dhi.io/valkey:8
     restart: always
-    command: ["--databases", "1"]
+    command: ["--databases", "1", "--protected-mode", "no"]
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli ping || valkey-cli ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -97,7 +110,7 @@ services:
       - oc_network
 
   cron:
-    image: owncloud/server:24.04-dhi
+    image: ghcr.io/media-apps/server:debian13
     container_name: owncloud_cron
     restart: always
     depends_on:

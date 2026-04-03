@@ -10,6 +10,9 @@ permissions:
   contents: read
   packages: write
 
+env:
+  OWNCLOUD_BUNDLE_VERSION: "10.16.1"
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -40,6 +43,8 @@ jobs:
           context: ./vdebian13
           file: ./vdebian13/Dockerfile.multiarch
           push: true
+          build-args: |
+            TARBALL_URL=https://download.owncloud.com/server/stable/owncloud-${{ env.OWNCLOUD_BUNDLE_VERSION }}.tar.bz2
           tags: |
             ghcr.io/${{ steps.image_owner.outputs.value }}/server:debian13
             ghcr.io/${{ steps.image_owner.outputs.value }}/server:debian13-${{ github.sha }}

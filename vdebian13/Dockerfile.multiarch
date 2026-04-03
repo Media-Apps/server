@@ -1,6 +1,8 @@
 FROM ghcr.io/media-apps/base:debian13
 
-ARG TARBALL_URL
+# URL of the ownCloud server bundle to unpack into /var/www.
+# CI must set this via build-args; we keep a sane default for local builds.
+ARG TARBALL_URL="https://download.owncloud.com/server/stable/owncloud-10.16.1.tar.bz2"
 
 LABEL maintainer="ownCloud GmbH " \
  org.opencontainers.image.authors="ownCloud DevOps " \
@@ -11,7 +13,7 @@ LABEL maintainer="ownCloud GmbH " \
  org.opencontainers.image.source="https://github.com/owncloud-docker/server" \
  org.opencontainers.image.documentation="https://github.com/owncloud-docker/server"
 
-ADD --unpack ${TARBALL_URL} /var/www/
+ADD --unpack "${TARBALL_URL}" /var/www/
 RUN ls -l /var/www && ls -l /var/www/owncloud
 
 ADD overlay /
