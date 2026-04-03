@@ -19,7 +19,8 @@ WORKDIR /var/www/owncloud
 
 USER root
 RUN find /var/www/owncloud \( \! -user www-data -o \! -group root \) -print0 | xargs -r -0 chown www-data:root && \
- chmod g+w /var/www/owncloud /var/www/owncloud/.htaccess
+  chmod g+w /var/www/owncloud && \
+  if [ -f /var/www/owncloud/.htaccess ]; then chmod g+w /var/www/owncloud/.htaccess; fi
 USER www-data
 
 VOLUME ["/mnt/data"]
